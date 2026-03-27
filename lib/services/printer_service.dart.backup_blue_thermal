@@ -1,0 +1,476 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' as esc_pos;
+import 'package:blue_thermal_printer/blue_thermal_printer.dart';
+
+class PrinterService {
+  // Plugin instance
+  final _bluetooth = BlueThermalPrinter.instance;
+
+  // Multi-printer support
+  final Map<String, BluetoothDevice> _printers = {};
+  String? _currentConnectedMac;
+  bool _isConnected = false;
+
+  // Paper size configuration per printer (58mm or 80mm)
+  final Map<String, esc_pos.PaperSize> _printerPaperSizes = {
+    'dapur': esc_pos.PaperSize.mm58, // Default 58mm untuk dapur
+    'kasir': esc_pos.PaperSize.mm80, // Default 80mm untuk kasir
+  };
+
+  // Debug mode for testing without physical printers
+  bool debugMode = false;
+  final List<String> _printLog = [];
+
+  final _statusController = StreamController<String>.broadcast();
+
+  Stream<String> get statusStream => _statusController.stream;
+  String _currentStatus = 'No printers connected';
+
+  String get currentStatus => _currentStatus;
+  Map<String, BluetoothDevice> get printers => Map.unmodifiable(_printers);
+  List<String> get printLog => List.unmodifiable(_printLog);
+
+  // Legacy support
+  BluetoothDevice? get connectedDevice =>
+      _currentConnectedMac != null ? _printers[_currentConnectedMac] : null;
+
+  static const String _savedDapurMacKey = 'saved_dapur_mac';
+  static const String _savedKasirMacKey = 'saved_kasir_mac';
+
+  PrinterService() {
+    _initialize();
+    _setupStateListener();
+  }
+
+  void _setupStateListener() {
+    // Listen to bluetooth connection state changes
+    _bluetooth.onStateChanged().listen((state) {
+      switch (state) {
+        case BlueThermalPrinter.CONNECTED:
+          _isConnected = true;
+          print('📱 Bluetooth state: CONNECTED');
+          break;
+        case BlueThermalPrinter.DISCONNECTED:
+          _isConnected = false;
+          _currentConnectedMac = null;
+          print('📱 Bluetooth state: DISCONNECTED');
+          break;
+        case BlueThermalPrinter.DISCONNECT_REQUESTED:
+          _isConnected = false;
+          print('📱 Bluetooth state: DISCONNECT_REQUESTED');
+          break;
+        default:
+          print('📱 Bluetooth state: $state');
+          break;
+      }
+    });
+  }
+
+  Future<void> _initialize() async {
+    // Try to auto-load saved printers
+    final prefs = await SharedPreferences.getInstance();
+    final dapurMac = prefs.getString(_savedDapurMacKey);
+    final kasirMac = prefs.getString(_savedKasirMacKey);
+
+    if (dapurMac != null || kasirMac != null) {
+      _updateStatus('Loading saved printers...');
+      try {
+        final devices = await scanDevices();
+
+        if (dapurMac != null) {
+          final dapur = devices.firstWhere(
+            (d) => d.address == dapurMac,
+            orElse: () => BluetoothDevice('Dapur (saved)', dapurMac),
+          );
+          _printers['dapur'] = dapur;
+        }
+
+        if (kasirMac != null) {
+          final kasir = devices.firstWhere(
+            (d) => d.address == kasirMac,
+            orElse: () => BluetoothDevice('Kasir (saved)', kasirMac),
+          );
+          _printers['kasir'] = kasir;
+        }
+
+        _updatePrinterStatus();
+      } catch (e) {
+        _updateStatus('Failed to load saved printers: $e');
+      }
+    }
+  }
+
+  void _updateStatus(String status) {
+    _currentStatus = status;
+    _statusController.add(status);
+  }
+
+  void _updatePrinterStatus() {
+    if (_printers.isEmpty) {
+      _updateStatus('No printers assigned');
+    } else {
+      final dapurStatus =
+          _printers.containsKey('dapur') ? '✓ Dapur' : '✗ Dapur';
+      final kasirStatus =
+          _printers.containsKey('kasir') ? '✓ Kasir' : '✗ Kasir';
+      _updateStatus('Printers: $dapurStatus, $kasirStatus');
+    }
+  }
+
+  /// Scan for available Bluetooth devices
+  Future<List<BluetoothDevice>> scanDevices() async {
+    try {
+      _updateStatus('Scanning for devices...');
+
+      // Return mock devices in debug mode
+      if (debugMode) {
+        _updateStatus('DEBUG MODE: Returning mock devices');
+        return [
+          BluetoothDevice('Mock Printer 1', 'AA:BB:CC:DD:EE:01'),
+          BluetoothDevice('Mock Printer 2', 'AA:BB:CC:DD:EE:02'),
+          BluetoothDevice('Mock Printer 3', 'AA:BB:CC:DD:EE:03'),
+        ];
+      }
+
+      print('🔍 Starting Bluetooth discovery...');
+
+      // Get bonded devices using blue_thermal_printer
+      final devices = await _bluetooth.getBondedDevices();
+
+      print('📊 Found ${devices.length} bonded device(s)');
+      for (final device in devices) {
+        print('  → ${device.name ?? "Unknown"} (${device.address})');
+      }
+
+      _updateStatus('Found ${devices.length} device(s)');
+      return devices;
+    } catch (e) {
+      print('❌ Scan error: $e');
+      _updateStatus('Scan failed: $e');
+      return [];
+    }
+  }
+
+  /// Set paper size for specific printer role
+  void setPaperSize(String role, esc_pos.PaperSize size) {
+    _printerPaperSizes[role] = size;
+  }
+
+  /// Get paper size for specific printer role
+  esc_pos.PaperSize getPaperSize(String role) {
+    return _printerPaperSizes[role] ?? esc_pos.PaperSize.mm58;
+  }
+
+  /// Assign printer to role (dapur or kasir)
+  Future<void> assignPrinter(String role, BluetoothDevice device) async {
+    try {
+      _printers[role] = device;
+
+      // Save MAC address
+      final prefs = await SharedPreferences.getInstance();
+      if (role == 'dapur') {
+        await prefs.setString(_savedDapurMacKey, device.address ?? '');
+      } else if (role == 'kasir') {
+        await prefs.setString(_savedKasirMacKey, device.address ?? '');
+      }
+
+      _updatePrinterStatus();
+    } catch (e) {
+      _updateStatus('Failed to assign printer: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove printer assignment
+  Future<void> removePrinter(String role) async {
+    try {
+      _printers.remove(role);
+
+      final prefs = await SharedPreferences.getInstance();
+      if (role == 'dapur') {
+        await prefs.remove(_savedDapurMacKey);
+      } else if (role == 'kasir') {
+        await prefs.remove(_savedKasirMacKey);
+      }
+
+      _updatePrinterStatus();
+    } catch (e) {
+      _updateStatus('Failed to remove printer: $e');
+    }
+  }
+
+  /// Legacy connect method (for backward compatibility)
+  Future<void> connect(BluetoothDevice device) async {
+    // Default to kasir for legacy calls
+    await assignPrinter('kasir', device);
+  }
+
+  /// Disconnect from printer (legacy)
+  Future<void> disconnect() async {
+    try {
+      await _bluetooth.disconnect();
+      _currentConnectedMac = null;
+      _updateStatus('Disconnected from current printer');
+    } catch (e) {
+      _updateStatus('Disconnect error: $e');
+    }
+  }
+
+  /// Check if printer is connected (legacy)
+  Future<bool> isConnected() async {
+    try {
+      final connected = await _bluetooth.isConnected;
+      _isConnected = connected ?? false;
+      return _isConnected;
+    } catch (e) {
+      _isConnected = false;
+      return false;
+    }
+  }
+
+  /// Get connection status synchronously
+  bool get isCurrentlyConnected => _isConnected;
+
+  /// Print to specific printer by MAC address
+  Future<void> printToMac(String macAddress, String text) async {
+    try {
+      _updateStatus('🖨️ START: Printing to $macAddress...');
+      print('═══════════════════════════════════════');
+      print('📤 PRINT REQUEST');
+      print('MAC: $macAddress');
+      print('Text length: ${text.length} chars');
+      print('═══════════════════════════════════════');
+
+      // Find printer role and device
+      String? printerRole;
+      BluetoothDevice? targetDevice;
+      for (final entry in _printers.entries) {
+        if (entry.value.address == macAddress) {
+          printerRole = entry.key;
+          targetDevice = entry.value;
+          break;
+        }
+      }
+      print('🏷️ Printer role: ${printerRole ?? "UNKNOWN"}');
+
+      // DEBUG MODE: Simulate printing
+      if (debugMode) {
+        print('🔧 DEBUG MODE: Simulating print...');
+        await Future.delayed(
+          const Duration(milliseconds: 500),
+        ); // Simulate delay
+        final roleName =
+            printerRole != null ? '${printerRole.toUpperCase()}' : macAddress;
+        final logEntry =
+            '[${DateTime.now().toString().substring(11, 19)}] PRINT to $roleName:\n$text';
+        _printLog.insert(0, logEntry);
+        if (_printLog.length > 20) _printLog.removeLast();
+        _updateStatus('✓ DEBUG: Simulated print to $roleName');
+        print('✅ DEBUG: Print simulated successfully');
+        return;
+      }
+
+      // Check if device exists
+      if (targetDevice == null) {
+        throw Exception('Printer with MAC $macAddress not found');
+      }
+
+      // Mark as connected
+      print('📌 Target MAC: $macAddress');
+      _currentConnectedMac = macAddress;
+
+      // Connect to printer
+      print('🔗 Connecting to printer...');
+      _updateStatus('Connecting to printer...');
+
+      // Check if already connected first
+      final isAlreadyConnected = await _bluetooth.isConnected;
+      if (isAlreadyConnected != true) {
+        // Not connected, establish connection
+        await _bluetooth.connect(targetDevice);
+
+        // Wait a bit for connection to stabilize
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Verify connection
+        final connected = await _bluetooth.isConnected;
+        if (connected != true) {
+          throw Exception('Failed to connect to printer');
+        }
+      }
+      print('✅ Connected to printer');
+
+      // Prepare print data
+      print('📝 Preparing print data using Generator...');
+      _updateStatus('Preparing print data...');
+      List<int> bytes = [];
+
+      try {
+        // Load printer profile
+        print('  ↳ Loading printer profile...');
+        final profile = await esc_pos.CapabilityProfile.load();
+
+        // Get paper size for this printer
+        final paperSize =
+            printerRole != null
+                ? (_printerPaperSizes[printerRole] ?? esc_pos.PaperSize.mm58)
+                : esc_pos.PaperSize.mm58;
+
+        print('  ↳ Creating generator with paper size: $paperSize');
+        final generator = esc_pos.Generator(paperSize, profile);
+
+        // Reset printer
+        print('  ↳ Adding reset command');
+        bytes += generator.reset();
+
+        // Split text into lines and print each
+        print('  ↳ Processing text lines...');
+        final lines = text.split('\n');
+        for (final line in lines) {
+          bytes += generator.text(
+            line,
+            styles: const esc_pos.PosStyles(align: esc_pos.PosAlign.left),
+          );
+        }
+
+        // Feed paper
+        print('  ↳ Adding feed (4 lines)');
+        bytes += generator.feed(4);
+
+        print('✅ Print data prepared: ${bytes.length} total bytes');
+      } catch (prepareError) {
+        final errorMsg = '❌ ERROR preparing print data: $prepareError';
+        print(errorMsg);
+        _updateStatus(errorMsg);
+        throw Exception('Prepare failed: $prepareError');
+      }
+
+      print('═══════════════════════════════════════');
+      print('📤 SENDING DATA TO PRINTER...');
+      _updateStatus('Sending ${bytes.length} bytes to printer...');
+
+      try {
+        // Send data using blue_thermal_printer writeBytes method
+        await _bluetooth.writeBytes(Uint8List.fromList(bytes));
+
+        print('✅ Print sent successfully');
+        _updateStatus('✓ Data sent: ${bytes.length} bytes');
+
+        // Wait for print to complete
+        print('⏳ Waiting for printer to process...');
+        await Future.delayed(const Duration(milliseconds: 800));
+      } catch (writeError) {
+        final errorMsg = '❌ ERROR writing to printer: $writeError';
+        print(errorMsg);
+        print('Details:');
+        print('  - Bytes prepared: ${bytes.length}');
+        print('  - MAC: $macAddress');
+        print('  - Error: $writeError');
+        _updateStatus(errorMsg);
+        throw Exception('Write failed: $writeError');
+      }
+
+      // Keep connection open for multi-printer scenarios
+      // Don't disconnect immediately to allow multiple prints
+      // Connection will be managed by state listener
+
+      final roleName =
+          printerRole != null ? '${printerRole.toUpperCase()}' : macAddress;
+
+      print('═══════════════════════════════════════');
+      print('✅ PRINT COMPLETED to $roleName');
+      print('Check printer for output!');
+      print('═══════════════════════════════════════');
+
+      _updateStatus('✓ Print completed to $roleName');
+    } catch (e, stackTrace) {
+      final errorMsg = '❌ PRINT ERROR: $e';
+      print('═══════════════════════════════════════');
+      print(errorMsg);
+      print('Stack trace:');
+      print(stackTrace);
+      print('═══════════════════════════════════════');
+      _updateStatus(errorMsg);
+      rethrow;
+    }
+  }
+
+  /// Print text using ESC/POS commands (legacy - uses current/kasir printer)
+  Future<void> printText(String text) async {
+    // Use kasir printer by default, or current connected
+    final mac = _printers['kasir']?.address ?? _currentConnectedMac;
+    if (mac == null || mac.isEmpty) {
+      throw Exception('No printer available');
+    }
+    await printToMac(mac, text);
+  }
+
+  /// Alternative: Print using blue_thermal_printer built-in methods
+  /// This is simpler and recommended for basic text printing
+  Future<void> printTextSimple(String text, {String? macAddress}) async {
+    try {
+      final mac =
+          macAddress ?? _printers['kasir']?.address ?? _currentConnectedMac;
+      if (mac == null) {
+        throw Exception('No printer available');
+      }
+
+      // Find device
+      BluetoothDevice? device;
+      for (final entry in _printers.entries) {
+        if (entry.value.address == mac) {
+          device = entry.value;
+          break;
+        }
+      }
+
+      if (device == null) {
+        throw Exception('Printer not found');
+      }
+
+      // Connect if not connected
+      final isConnected = await _bluetooth.isConnected;
+      if (isConnected != true) {
+        await _bluetooth.connect(device);
+        await Future.delayed(const Duration(milliseconds: 500));
+      }
+
+      // Print using built-in methods
+      await _bluetooth.printNewLine();
+      final lines = text.split('\n');
+      for (final line in lines) {
+        if (line.trim().isNotEmpty) {
+          await _bluetooth.printCustom(
+            line,
+            0,
+            0,
+          ); // size: 0=normal, align: 0=left
+        } else {
+          await _bluetooth.printNewLine();
+        }
+      }
+      await _bluetooth.printNewLine();
+      await _bluetooth.printNewLine();
+
+      _updateStatus('✓ Print completed (simple mode)');
+    } catch (e) {
+      _updateStatus('Print error: $e');
+      rethrow;
+    }
+  }
+
+  /// Clear all saved printers
+  Future<void> clearSavedPrinters() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_savedDapurMacKey);
+    await prefs.remove(_savedKasirMacKey);
+    _printers.clear();
+    _updateStatus('All saved printers cleared');
+  }
+
+  void dispose() {
+    _statusController.close();
+  }
+}

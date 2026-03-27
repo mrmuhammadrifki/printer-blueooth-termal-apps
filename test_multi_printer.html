@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PrintGateway Multi-Printer Test</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 30px;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 32px;
+        margin-bottom: 10px;
+      }
+
+      .header p {
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 30px;
+      }
+
+      .status {
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 2px solid #c3e6cb;
+      }
+
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 2px solid #f5c6cb;
+      }
+
+      .status.info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 2px solid #bee5eb;
+      }
+
+      .status.warning {
+        background: #fff3cd;
+        color: #856404;
+        border: 2px solid #ffeeba;
+      }
+
+      .printers {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+
+      .printer-card {
+        border: 3px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s;
+      }
+
+      .printer-card.dapur {
+        border-color: #ff9800;
+      }
+
+      .printer-card.kasir {
+        border-color: #4caf50;
+      }
+
+      .printer-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      }
+
+      .printer-icon {
+        font-size: 48px;
+        margin-bottom: 10px;
+      }
+
+      .printer-name {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 5px;
+      }
+
+      .printer-card.dapur .printer-name {
+        color: #ff9800;
+      }
+
+      .printer-card.kasir .printer-name {
+        color: #4caf50;
+      }
+
+      .printer-mac {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 15px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 120px;
+        padding: 15px;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        font-family: 'Courier New', monospace;
+        font-size: 14px;
+        resize: vertical;
+        margin-bottom: 15px;
+      }
+
+      textarea:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      button {
+        padding: 12px 24px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-dapur {
+        background: #ff9800;
+        color: white;
+      }
+
+      .btn-kasir {
+        background: #4caf50;
+        color: white;
+      }
+
+      .btn-primary {
+        background: #667eea;
+        color: white;
+      }
+
+      .btn-secondary {
+        background: #6c757d;
+        color: white;
+      }
+
+      .button-group {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+
+      .response {
+        background: #f8f9fa;
+        border-left: 4px solid #667eea;
+        padding: 15px;
+        margin-top: 20px;
+        font-family: 'Courier New', monospace;
+        font-size: 13px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+      }
+
+      .section {
+        margin-bottom: 30px;
+      }
+
+      .section-title {
+        font-size: 20px;
+        font-weight: bold;
+        margin-bottom: 15px;
+        color: #333;
+      }
+
+      .note {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🖨️🖨️ PrintGateway Multi-Printer</h1>
+        <p>Test interface untuk 2 printer: Dapur & Kasir</p>
+      </div>
+
+      <div class="content">
+        <div class="note">
+          <strong>⚠️ Catatan:</strong> Halaman ini harus dibuka di Android device yang sama dengan app PrintGateway.
+        </div>
+
+        <div id="statusDiv" class="status info">
+          <span>⏳</span>
+          <span>Connecting to server...</span>
+        </div>
+
+        <!-- Printer Cards -->
+        <div class="section">
+          <div class="section-title">Printer Yang Tersedia</div>
+          <div class="printers">
+            <div class="printer-card dapur" id="dapurCard">
+              <div class="printer-icon">🍳</div>
+              <div class="printer-name">Printer Dapur</div>
+              <div class="printer-mac" id="dapurMac">Loading...</div>
+              <button class="btn-dapur" onclick="testPrintDapur()" id="btnDapur" disabled>Print Test</button>
+            </div>
+
+            <div class="printer-card kasir" id="kasirCard">
+              <div class="printer-icon">💰</div>
+              <div class="printer-name">Printer Kasir</div>
+              <div class="printer-mac" id="kasirMac">Loading...</div>
+              <button class="btn-kasir" onclick="testPrintKasir()" id="btnKasir" disabled>Print Test</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Print -->
+        <div class="section">
+          <div class="section-title">Custom Print</div>
+
+          <label><strong>Text untuk Printer Dapur:</strong></label>
+          <textarea id="textDapur" placeholder="Enter text to print to kitchen printer...">
+ORDER DAPUR
+================
+Meja: A5
+Waktu: 14:30
+
+1x Nasi Goreng
+  - Extra pedas
+1x Es Teh Manis
+
+================
+Total: 2 item</textarea
+          >
+
+          <label><strong>Text untuk Printer Kasir:</strong></label>
+          <textarea id="textKasir" placeholder="Enter text to print to cashier printer...">
+RECEIPT
+================
+Order #123
+03/12/2025 14:30
+
+Nasi Goreng     25,000
+Es Teh Manis     5,000
+-------------------
+Total:          30,000
+
+Terima kasih!
+================</textarea
+          >
+
+          <div class="button-group">
+            <button class="btn-dapur" onclick="printToDapur()">🍳 Print ke Dapur</button>
+            <button class="btn-kasir" onclick="printToKasir()">💰 Print ke Kasir</button>
+            <button class="btn-primary" onclick="printToBoth()">🖨️🖨️ Print ke Keduanya</button>
+            <button class="btn-secondary" onclick="clearResponse()">🗑️ Clear Log</button>
+          </div>
+        </div>
+
+        <!-- Response Log -->
+        <div id="responseDiv" class="response" style="display: none"></div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = 'http://127.0.0.1:18181';
+      let printerMACs = {
+        dapur: null,
+        kasir: null,
+      };
+
+      // Status management
+      function showStatus(message, type, icon = '') {
+        const statusDiv = document.getElementById('statusDiv');
+        statusDiv.className = `status ${type}`;
+        statusDiv.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+      }
+
+      function showResponse(data) {
+        const responseDiv = document.getElementById('responseDiv');
+        responseDiv.style.display = 'block';
+        const timestamp = new Date().toLocaleTimeString();
+        const newLog = `[${timestamp}] ${JSON.stringify(data, null, 2)}\n\n`;
+        responseDiv.textContent = newLog + responseDiv.textContent;
+      }
+
+      function clearResponse() {
+        document.getElementById('responseDiv').style.display = 'none';
+        document.getElementById('responseDiv').textContent = '';
+      }
+
+      // Load printer info from server
+      async function loadPrinters() {
+        try {
+          showStatus('Loading printer information...', 'info', '⏳');
+
+          const response = await fetch(`${API_URL}/`);
+          const data = await response.json();
+
+          if (data.printers) {
+            // Update Dapur
+            if (data.printers.dapur) {
+              printerMACs.dapur = data.printers.dapur.mac;
+              document.getElementById(
+                'dapurMac'
+              ).textContent = `${data.printers.dapur.name}\n${data.printers.dapur.mac}`;
+              document.getElementById('btnDapur').disabled = false;
+            } else {
+              document.getElementById('dapurMac').textContent = 'Not assigned';
+            }
+
+            // Update Kasir
+            if (data.printers.kasir) {
+              printerMACs.kasir = data.printers.kasir.mac;
+              document.getElementById(
+                'kasirMac'
+              ).textContent = `${data.printers.kasir.name}\n${data.printers.kasir.mac}`;
+              document.getElementById('btnKasir').disabled = false;
+            } else {
+              document.getElementById('kasirMac').textContent = 'Not assigned';
+            }
+
+            const count = data.printer_count || 0;
+            showStatus(`✓ Connected! ${count} printer(s) available`, 'success', '✅');
+          } else {
+            showStatus('⚠️ No printers assigned in app', 'warning', '⚠️');
+          }
+
+          showResponse(data);
+        } catch (error) {
+          showStatus('❌ Cannot connect to PrintGateway app', 'error', '❌');
+          showResponse({ error: error.message });
+          console.error('Load error:', error);
+        }
+      }
+
+      // Print to specific printer
+      async function printToMAC(mac, text, printerName) {
+        if (!mac) {
+          alert(`Printer ${printerName} belum di-assign! Buka app dan assign dulu.`);
+          return;
+        }
+
+        try {
+          showStatus(`Printing to ${printerName}...`, 'info', '⏳');
+
+          const response = await fetch(`${API_URL}/print`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, mac }),
+          });
+
+          const data = await response.json();
+          showResponse(data);
+
+          if (data.status === 'ok') {
+            showStatus(`✓ Printed to ${printerName}!`, 'success', '✅');
+          } else {
+            showStatus(`✗ Print failed: ${data.message}`, 'error', '❌');
+          }
+        } catch (error) {
+          showStatus(`✗ Error: ${error.message}`, 'error', '❌');
+          showResponse({ error: error.message });
+        }
+      }
+
+      // Test print functions
+      async function testPrintDapur() {
+        const testText = 'TEST PRINT - DAPUR\n================\nTest dari web page\n' + new Date().toLocaleString();
+        await printToMAC(printerMACs.dapur, testText, 'Dapur');
+      }
+
+      async function testPrintKasir() {
+        const testText = 'TEST PRINT - KASIR\n================\nTest dari web page\n' + new Date().toLocaleString();
+        await printToMAC(printerMACs.kasir, testText, 'Kasir');
+      }
+
+      // Custom print functions
+      async function printToDapur() {
+        const text = document.getElementById('textDapur').value;
+        if (!text.trim()) {
+          alert('Text tidak boleh kosong!');
+          return;
+        }
+        await printToMAC(printerMACs.dapur, text, 'Dapur');
+      }
+
+      async function printToKasir() {
+        const text = document.getElementById('textKasir').value;
+        if (!text.trim()) {
+          alert('Text tidak boleh kosong!');
+          return;
+        }
+        await printToMAC(printerMACs.kasir, text, 'Kasir');
+      }
+
+      async function printToBoth() {
+        const textDapur = document.getElementById('textDapur').value;
+        const textKasir = document.getElementById('textKasir').value;
+
+        if (!textDapur.trim() || !textKasir.trim()) {
+          alert('Kedua text harus diisi!');
+          return;
+        }
+
+        showStatus('Printing to both printers...', 'info', '⏳');
+
+        try {
+          await printToMAC(printerMACs.dapur, textDapur, 'Dapur');
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Delay
+          await printToMAC(printerMACs.kasir, textKasir, 'Kasir');
+
+          showStatus('✓ Printed to both printers!', 'success', '✅');
+        } catch (error) {
+          showStatus('✗ Error printing to both', 'error', '❌');
+        }
+      }
+
+      // Auto-load on page load
+      window.addEventListener('load', () => {
+        setTimeout(loadPrinters, 500);
+      });
+    </script>
+  </body>
+</html>

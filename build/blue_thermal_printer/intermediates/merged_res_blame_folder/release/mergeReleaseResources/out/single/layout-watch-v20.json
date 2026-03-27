@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/layout-watch-v20/abc_alert_dialog_button_bar_material.xml",
+        "source": "id.kakzaki.blue_thermal_printer-appcompat-1.4.2-19:/layout-watch-v20/abc_alert_dialog_button_bar_material.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/layout-watch-v20/abc_alert_dialog_title_material.xml",
+        "source": "id.kakzaki.blue_thermal_printer-appcompat-1.4.2-19:/layout-watch-v20/abc_alert_dialog_title_material.xml"
+    }
+]

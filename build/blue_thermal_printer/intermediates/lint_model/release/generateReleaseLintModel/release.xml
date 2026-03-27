@@ -1,0 +1,31 @@
+<variant
+    name="release"
+    package="id.kakzaki.blue_thermal_printer"
+    minSdkVersion="18"
+    targetSdkVersion="18"
+    mergedManifest="D:\printer_bluetooth_server_app\build\blue_thermal_printer\intermediates\merged_manifest\release\processReleaseManifest\AndroidManifest.xml"
+    manifestMergeReport="D:\printer_bluetooth_server_app\build\blue_thermal_printer\outputs\logs\manifest-merger-release-report.txt"
+    proguardFiles="D:\printer_bluetooth_server_app\build\blue_thermal_printer\intermediates\default_proguard_files\global\proguard-android.txt-8.7.0"
+    partialResultsDir="D:\printer_bluetooth_server_app\build\blue_thermal_printer\intermediates\lint_partial_results\release\lintAnalyzeRelease\out">
+  <buildFeatures
+      namespacing="REQUIRED"/>
+  <sourceProviders>
+    <sourceProvider
+        manifests="src\main\AndroidManifest.xml"
+        javaDirectories="src\main\java;src\release\java;src\main\kotlin;src\release\kotlin"
+        resDirectories="src\main\res;src\release\res"
+        assetsDirectories="src\main\assets;src\release\assets"/>
+  </sourceProviders>
+  <testSourceProviders>
+  </testSourceProviders>
+  <testFixturesSourceProviders>
+  </testFixturesSourceProviders>
+  <artifact
+      classOutputs="D:\printer_bluetooth_server_app\build\blue_thermal_printer\intermediates\javac\release\compileReleaseJavaWithJavac\classes;D:\printer_bluetooth_server_app\build\blue_thermal_printer\intermediates\compile_r_class_jar\release\generateReleaseRFile\R.jar"
+      type="MAIN"
+      applicationId="id.kakzaki.blue_thermal_printer"
+      generatedSourceFolders="D:\printer_bluetooth_server_app\build\blue_thermal_printer\generated\ap_generated_sources\release\out"
+      generatedResourceFolders="D:\printer_bluetooth_server_app\build\blue_thermal_printer\generated\res\resValues\release"
+      desugaredMethodsFiles="C:\Users\muham\.gradle\caches\8.10.2\transforms\76dc84f2c7d7a22e0030017e1d1f32f9\transformed\D8BackportedDesugaredMethods.txt">
+  </artifact>
+</variant>

@@ -1,0 +1,26 @@
+<lint-module
+    format="1"
+    dir="C:\Users\muham\AppData\Local\Pub\Cache\hosted\pub.dev\blue_thermal_printer-1.2.3\android"
+    name=":blue_thermal_printer"
+    type="LIBRARY"
+    maven="id.kakzaki.blue_thermal_printer:blue_thermal_printer:unspecified"
+    agpVersion="8.7.0"
+    buildFolder="D:\printer_bluetooth_server_app\build\blue_thermal_printer"
+    bootClassPath="C:\Users\muham\AppData\Local\Android\sdk\platforms\android-31\android.jar;C:\Users\muham\AppData\Local\Android\sdk\build-tools\34.0.0\core-lambda-stubs.jar"
+    javaSourceLevel="1.8"
+    compileTarget="android-31"
+    neverShrinking="true">
+  <lintOptions
+      disable="InvalidPackage"
+      abortOnError="true"
+      absolutePaths="true"
+      checkReleaseBuilds="true"
+      explainIssues="true">
+    <severities>
+      <severity
+        id="InvalidPackage"
+        severity="IGNORE" />
+    </severities>
+  </lintOptions>
+  <variant name="release"/>
+</lint-module>

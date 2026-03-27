@@ -1,0 +1,26 @@
+[
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_fade_exit.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_fade_exit.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_close_enter.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_close_enter.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_open_enter.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_open_enter.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_close_exit.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_close_exit.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_fade_enter.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_fade_enter.xml"
+    },
+    {
+        "merged": "id.kakzaki.blue_thermal_printer-release-30:/animator/fragment_open_exit.xml",
+        "source": "id.kakzaki.blue_thermal_printer-fragment-1.7.1-15:/animator/fragment_open_exit.xml"
+    }
+]

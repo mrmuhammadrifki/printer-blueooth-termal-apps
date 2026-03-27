@@ -1,0 +1,5 @@
+package com.example.printer_bluetooth_server_app
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()
