@@ -1,3 +1,22 @@
 
 # FVM Version Cache
 .fvm/
+
+# Build output
+build/
+android/app/build/
+ios/build/
+macos/build/
+
+# Flutter/Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.g.dart
+
+# macOS
+.DS_Store
+
+# Gradle
+android/.gradle/
+android/captures/

@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.example.printer_bluetooth_server_app"
     compileSdk = 36
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"  // Use already installed NDK version
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

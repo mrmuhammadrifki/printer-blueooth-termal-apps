@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart' as esc_pos;
 import 'package:blue_thermal_printer/blue_thermal_printer.dart';
@@ -14,23 +15,33 @@ class PrintersPage extends StatefulWidget {
 }
 
 class _PrintersPageState extends State<PrintersPage> {
-  bool _isScanning = false;
-  List<BluetoothDevice> _devices = [];
+  late final Stream<void> _settingsStream;
 
-  Future<void> _scanDevices() async {
-    setState(() {
-      _isScanning = true;
-      _devices = [];
+  @override
+  void initState() {
+    super.initState();
+    _settingsStream = widget.printerService.categoriesChangedStream;
+    _settingsStream.listen((_) {
+      if (mounted) {
+        setState(() {}); // Refresh UI when settings change
+      }
     });
+  }
 
-    try {
-      final devices = await widget.printerService.scanDevices();
-      setState(() {
-        _devices = devices;
-      });
-    } finally {
-      setState(() => _isScanning = false);
-    }
+  // New method: Scan and immediately show dialog with results
+  Future<void> _scanAndShowDialog(PrinterCategory category) async {
+    // Show dialog immediately with loading state
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => _ScanDialogContent(
+        category: category,
+        printerService: widget.printerService,
+        onAssigned: () {
+          setState(() {}); // Refresh main page
+        },
+      ),
+    );
   }
 
   void _showAddCategoryDialog() {
@@ -119,76 +130,8 @@ class _PrintersPageState extends State<PrintersPage> {
   }
 
   void _showAssignDialog(PrinterCategory category) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            backgroundColor: const Color(0xFF1A1F2E),
-            title: Text('Assign Printer to ${category.name}'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_devices.isEmpty)
-                    Column(
-                      children: [
-                        const Icon(
-                          Icons.bluetooth_searching,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No devices found',
-                          style: TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            Navigator.pop(context);
-                            await _scanDevices();
-                            _showAssignDialog(category);
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Scan Devices'),
-                        ),
-                      ],
-                    )
-                  else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: _devices.length,
-                      itemBuilder: (context, index) {
-                        final device = _devices[index];
-                        return ListTile(
-                          leading: const Icon(Icons.print_rounded),
-                          title: Text(device.name ?? 'Unknown'),
-                          subtitle: Text(device.address ?? ''),
-                          onTap: () async {
-                            await widget.printerService.assignPrinterToCategory(
-                              category.id,
-                              device,
-                            );
-                            if (mounted) {
-                              Navigator.pop(context);
-                              setState(() {});
-                            }
-                          },
-                        );
-                      },
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-            ],
-          ),
-    );
+    // Use new scan and show dialog method
+    _scanAndShowDialog(category);
   }
 
   void _showEditPaperSizeDialog(PrinterCategory category) {
@@ -203,40 +146,42 @@ class _PrintersPageState extends State<PrintersPage> {
                 (context, setDialogState) => AlertDialog(
                   backgroundColor: const Color(0xFF1A1F2E),
                   title: Text('Edit Paper Size - ${category.name}'),
-                  content: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Select the paper width for this printer category:',
-                        style: TextStyle(color: Colors.grey, fontSize: 14),
-                      ),
-                      const SizedBox(height: 20),
-                      DropdownButtonFormField<int>(
-                        value: selectedValue,
-                        dropdownColor: const Color(0xFF1A1F2E),
-                        decoration: const InputDecoration(
-                          labelText: 'Paper Size',
-                          prefixIcon: Icon(Icons.straighten),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Select paper width:',
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 58,
-                            child: Text('58mm (Small - Common for receipts)'),
+                        const SizedBox(height: 20),
+                        DropdownButtonFormField<int>(
+                          value: selectedValue,
+                          dropdownColor: const Color(0xFF1A1F2E),
+                          decoration: const InputDecoration(
+                            labelText: 'Paper Size',
+                            prefixIcon: Icon(Icons.straighten),
                           ),
-                          DropdownMenuItem(
-                            value: 80,
-                            child: Text('80mm (Large - Full receipts)'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setDialogState(() {
-                              selectedValue = value;
-                            });
-                          }
-                        },
-                      ),
-                    ],
+                          items: const [
+                            DropdownMenuItem(
+                              value: 58,
+                              child: Text('58mm (Small)'),
+                            ),
+                            DropdownMenuItem(
+                              value: 80,
+                              child: Text('80mm (Large)'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setDialogState(() {
+                                selectedValue = value;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                   actions: [
                     TextButton(
@@ -338,45 +283,6 @@ class _PrintersPageState extends State<PrintersPage> {
                 ],
               ),
             ),
-
-          // Scan Button
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.bluetooth_searching_rounded,
-                    size: 48,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Discover Bluetooth Printers',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Scan for paired Bluetooth devices',
-                    style: TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _isScanning ? null : _scanDevices,
-                    icon:
-                        _isScanning
-                            ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                            : const Icon(Icons.search_rounded),
-                    label: Text(_isScanning ? 'Scanning...' : 'Scan Devices'),
-                  ),
-                ],
-              ),
-            ),
-          ),
 
           const SizedBox(height: 16),
 
@@ -599,6 +505,290 @@ class _PrintersPageState extends State<PrintersPage> {
           }),
         ],
       ),
+    );
+  }
+}
+
+// Scan Dialog Content - Stateful widget for real-time scan updates
+class _ScanDialogContent extends StatefulWidget {
+  final PrinterCategory category;
+  final PrinterService printerService;
+  final VoidCallback onAssigned;
+
+  const _ScanDialogContent({
+    required this.category,
+    required this.printerService,
+    required this.onAssigned,
+  });
+
+  @override
+  State<_ScanDialogContent> createState() => _ScanDialogContentState();
+}
+
+class _ScanDialogContentState extends State<_ScanDialogContent> {
+  bool _isScanning = true;
+  List<BluetoothDevice> _devices = [];
+  String? _errorMessage;
+  StreamSubscription<void>? _settingsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _performScan();
+    
+    // Listen to settings changes for real-time updates (e.g., debug mode toggle)
+    _settingsSubscription = widget.printerService.categoriesChangedStream.listen((_) {
+      if (mounted) {
+        setState(() {}); // Refresh UI when settings change
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _settingsSubscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _performScan() async {
+    setState(() {
+      _isScanning = true;
+      _devices = [];
+      _errorMessage = null;
+    });
+
+    try {
+      final devices = await widget.printerService.scanDevices();
+      if (mounted) {
+        setState(() {
+          _devices = devices;
+          _isScanning = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = e.toString();
+          _isScanning = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: const Color(0xFF1A1F2E),
+      title: Text('Assign Printer to ${widget.category.name}'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: _isScanning
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(
+                    width: 48,
+                    height: 48,
+                    child: CircularProgressIndicator(strokeWidth: 4),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    widget.printerService.debugMode
+                        ? 'Loading mock devices...'
+                        : 'Scanning for Bluetooth devices...',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.printerService.debugMode
+                        ? 'Debug mode active'
+                        : 'Please wait (max 15 seconds)',
+                    style: TextStyle(
+                      color: widget.printerService.debugMode
+                          ? Colors.orange[300]
+                          : Colors.grey[400],
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              )
+            : _errorMessage != null
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: Colors.red,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Scan Error',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _errorMessage!,
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _performScan,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Try Again'),
+                      ),
+                    ],
+                  )
+                : _devices.isEmpty
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            widget.printerService.debugMode
+                                ? Icons.bug_report
+                                : Icons.bluetooth_disabled,
+                            size: 48,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            widget.printerService.debugMode
+                                ? 'Debug Mode Active'
+                                : 'No Devices Found',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.printerService.debugMode
+                                ? 'No mock printers available. This should not happen in debug mode.'
+                                : 'No paired Bluetooth devices found.\\nPair your printer in system Bluetooth settings first.',
+                            style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _performScan,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Scan Again'),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (widget.printerService.debugMode)
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.bug_report,
+                                      size: 16, color: Colors.orange),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Debug Mode: Mock Printers',
+                                      style: TextStyle(
+                                        color: Colors.orange[300],
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: _devices.length,
+                            itemBuilder: (context, index) {
+                              final device = _devices[index];
+                              final isMock = widget.printerService.debugMode;
+                              return ListTile(
+                                leading: Icon(
+                                  isMock
+                                      ? Icons.bug_report
+                                      : Icons.print_rounded,
+                                  color: isMock ? Colors.orange : null,
+                                ),
+                                title: Text(device.name ?? 'Unknown'),
+                                subtitle: Text(device.address ?? ''),
+                                trailing: Icon(
+                                  Icons.arrow_forward_ios,
+                                  size: 16,
+                                  color: Colors.grey[600],
+                                ),
+                                onTap: () async {
+                                  try {
+                                    await widget.printerService
+                                        .assignPrinterToCategory(
+                                      widget.category.id,
+                                      device,
+                                    );
+                                    if (mounted) {
+                                      widget.onAssigned();
+                                      Navigator.pop(context);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            '\u2713 ${device.name} assigned to ${widget.category.name}',
+                                          ),
+                                          backgroundColor:
+                                              const Color(0xFF00FFA3),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  } catch (e) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text('\u274c Error: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+      ),
+      actions: _isScanning
+          ? null
+          : [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              if (_devices.isNotEmpty || _errorMessage != null)
+                TextButton.icon(
+                  onPressed: _performScan,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Rescan'),
+                ),
+            ],
     );
   }
 }

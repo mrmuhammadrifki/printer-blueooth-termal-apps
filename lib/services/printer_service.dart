@@ -301,8 +301,14 @@ class PrinterService {
 
       print('🔍 Starting Bluetooth discovery...');
 
-      // Check if Bluetooth is available
-      final isAvailable = await _bluetooth.isAvailable;
+      // Check if Bluetooth is available with timeout
+      final isAvailable = await _bluetooth.isAvailable.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('⏰ Bluetooth availability check timed out');
+          return false;
+        },
+      );
       if (isAvailable != true) {
         final error = 'Bluetooth is not available on this device';
         print('❌ $error');
@@ -322,7 +328,15 @@ class PrinterService {
       print('✅ Bluetooth is available and enabled');
       print('📡 Fetching bonded devices...');
 
-      final devices = await _bluetooth.getBondedDevices();
+      // Get bonded devices with 15 second timeout
+      final devices = await _bluetooth.getBondedDevices().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          print('⏰ Scan timed out after 15 seconds');
+          _updateStatus('Scan timed out. Try again.');
+          return <BluetoothDevice>[];
+        },
+      );
 
       print('═══════════════════════════════════════');
       print('📊 SCAN RESULTS');
@@ -436,8 +450,46 @@ class PrinterService {
     }
   }
 
-  String formatReceipt(String content, {String? serverName}) {
+  /// Get character width per line based on paper size
+  int _getCharWidth(esc_pos.PaperSize paperSize) {
+    switch (paperSize) {
+      case esc_pos.PaperSize.mm58:
+        return 32; // 58mm paper: 32 chars per line
+      case esc_pos.PaperSize.mm80:
+        return 48; // 80mm paper: 48 chars per line
+      default:
+        return 32;
+    }
+  }
+
+  /// Wrap text to fit paper width
+  List<String> _wrapText(String text, int maxWidth) {
+    if (text.length <= maxWidth) return [text];
+    
     final lines = <String>[];
+    var currentLine = '';
+    final words = text.split(' ');
+    
+    for (final word in words) {
+      if ((currentLine + word).length <= maxWidth) {
+        currentLine += (currentLine.isEmpty ? '' : ' ') + word;
+      } else {
+        if (currentLine.isNotEmpty) lines.add(currentLine);
+        currentLine = word;
+      }
+    }
+    if (currentLine.isNotEmpty) lines.add(currentLine);
+    
+    return lines;
+  }
+
+  String formatReceipt(String content, {
+    String? serverName,
+    esc_pos.PaperSize paperSize = esc_pos.PaperSize.mm58,
+  }) {
+    final lines = <String>[];
+    final charWidth = _getCharWidth(paperSize);
+    final separator = '-' * charWidth;
 
     if (businessSettings.showBusinessName) {
       lines.add(businessSettings.businessName);
@@ -454,7 +506,7 @@ class PrinterService {
     if (businessSettings.showBusinessName ||
         businessSettings.showAddress ||
         businessSettings.showPhoneNumber) {
-      lines.add('---------------------------------------');
+      lines.add(separator);
     }
 
     if (businessSettings.showDateTime) {
@@ -470,12 +522,12 @@ class PrinterService {
     }
 
     if (businessSettings.showDateTime || businessSettings.showServerId) {
-      lines.add('---------------------------------------');
+      lines.add(separator);
     }
 
     lines.add(content);
 
-    lines.add('---------------------------------------');
+    lines.add(separator);
     lines.add('Terima kasih Atas Kunjungan Anda! Sampai Jumpa');
     lines.add('kembali');
 
@@ -497,13 +549,18 @@ class PrinterService {
         throw Exception('No printer assigned to ${category.name}');
       }
 
-      final formattedContent = formatReceipt(content, serverName: serverName);
+      final formattedContent = formatReceipt(
+        content,
+        serverName: serverName,
+        paperSize: category.paperSize,
+      );
 
       _updateStatus('🖨️ Printing to ${category.name}...');
       print('═══════════════════════════════════════');
       print('📤 PRINT REQUEST');
       print('Category: ${category.name}');
       print('MAC: ${category.macAddress}');
+      print('Paper Size: ${category.paperSize == esc_pos.PaperSize.mm58 ? "58mm" : "80mm"}');
       print('Content length: ${content.length} chars');
       print('═══════════════════════════════════════');
 
@@ -529,14 +586,27 @@ class PrinterService {
       print('🔗 Connecting to printer...');
       _updateStatus('Connecting to printer...');
 
+      // CRITICAL FIX: Always disconnect first to ensure clean connection
+      // This fixes multi-printer support where switching between printers failed
       final isAlreadyConnected = await _bluetooth.isConnected;
-      if (isAlreadyConnected != true) {
-        await _bluetooth.connect(device);
-        await Future.delayed(const Duration(milliseconds: 500));
-        final connected = await _bluetooth.isConnected;
-        if (connected != true) {
-          throw Exception('Failed to connect to printer');
+      if (isAlreadyConnected == true) {
+        print('⚠️ Already connected to a printer, disconnecting first...');
+        try {
+          await _bluetooth.disconnect();
+          await Future.delayed(const Duration(milliseconds: 300));
+        } catch (e) {
+          print('⚠️ Disconnect warning: $e (continuing anyway)');
         }
+      }
+
+      // Connect to target printer
+      print('🔌 Connecting to ${device.name} (${device.address})...');
+      await _bluetooth.connect(device);
+      await Future.delayed(const Duration(milliseconds: 800));
+      
+      final connected = await _bluetooth.isConnected;
+      if (connected != true) {
+        throw Exception('Failed to connect to printer');
       }
       print('✅ Connected to printer');
 
@@ -547,34 +617,22 @@ class PrinterService {
       try {
         final profile = await esc_pos.CapabilityProfile.load();
         final generator = esc_pos.Generator(category.paperSize, profile);
+        final charWidth = _getCharWidth(category.paperSize);
 
-        // Initialize printer with proper ESC/POS commands
-        // reset() already sends ESC @ (0x1B 0x40), so we don't duplicate it
-        bytes.addAll(generator.reset());
-
-        // Wait for printer to wake up and initialize
-        await Future.delayed(const Duration(milliseconds: 300));
-
-        // Enable printer (ESC = 1) - wake up from sleep mode
-        bytes.addAll([0x1B, 0x3D, 0x01]);
-
-        // Set character code table to PC437 (standard)
-        bytes.addAll([0x1B, 0x74, 0x00]);
-
-        // Set print mode to normal
-        bytes.addAll([0x1B, 0x21, 0x00]);
+        // Initialize printer with optimized ESC/POS commands
+        bytes.addAll(generator.reset()); // ESC @ - Initialize printer
 
         final lines = formattedContent.split('\n');
         for (final line in lines) {
           if (line.trim().isEmpty) {
-            // Empty line - just add line feed
-            bytes.addAll([0x0A]);
-          } else if (line.startsWith('---')) {
-            // Horizontal rule - use dashes for better compatibility
-            final dashes = '-' * 42;
+            // Empty line - just feed
+            bytes.addAll(generator.feed(1));
+          } else if (line.startsWith('-')) {
+            // Horizontal rule - use correct char width
+            final separator = '-' * charWidth;
             bytes.addAll(
               generator.text(
-                dashes,
+                separator,
                 styles: const esc_pos.PosStyles(align: esc_pos.PosAlign.left),
               ),
             );
@@ -593,18 +651,21 @@ class PrinterService {
               ),
             );
           } else {
-            // Regular text
-            bytes.addAll(
-              generator.text(
-                line,
-                styles: const esc_pos.PosStyles(align: esc_pos.PosAlign.left),
-              ),
-            );
+            // Regular text - wrap if too long
+            final wrappedLines = _wrapText(line, charWidth);
+            for (final wrappedLine in wrappedLines) {
+              bytes.addAll(
+                generator.text(
+                  wrappedLine,
+                  styles: const esc_pos.PosStyles(align: esc_pos.PosAlign.left),
+                ),
+              );
+            }
           }
         }
 
-        // Add sufficient feed before cut (increased from 5 to 6)
-        bytes.addAll(generator.feed(6));
+        // Add feed before cut (4 lines is optimal for most thermal printers)
+        bytes.addAll(generator.feed(4));
 
         print('✅ Print data prepared: ${bytes.length} bytes');
       } catch (prepareError) {
@@ -676,12 +737,11 @@ class PrinterService {
 
         print('✅ All print data sent successfully (${bytes.length} bytes)');
 
-        // Wait longer for printer to process all the data before cutting
-        // Increased from 1500ms to 3000ms for better reliability
-        print('⏳ Waiting for printer to process data...');
-        await Future.delayed(const Duration(milliseconds: 3000));
+        // Wait for printer to process data before cutting
+        print('⏳ Waiting for printer to process and print...');
+        await Future.delayed(const Duration(milliseconds: 2000));
 
-        // Send paper cut command separately to ensure it executes
+        // Send paper cut command
         print('✂️ Sending cut command...');
         final profile = await esc_pos.CapabilityProfile.load();
         final generator = esc_pos.Generator(category.paperSize, profile);
@@ -715,6 +775,15 @@ class PrinterService {
 
         // Final delay to ensure cut completes
         await Future.delayed(const Duration(milliseconds: 500));
+
+        // Disconnect after print to allow other printers to connect
+        print('🔌 Disconnecting from printer...');
+        try {
+          await _bluetooth.disconnect();
+          print('✅ Disconnected successfully');
+        } catch (e) {
+          print('⚠️ Disconnect warning: $e');
+        }
       } catch (writeError) {
         print('❌ ERROR writing to printer: $writeError');
         _updateStatus('Failed to write to printer');

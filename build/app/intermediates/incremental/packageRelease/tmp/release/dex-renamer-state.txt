@@ -1,4 +1,0 @@
-#Wed Feb 11 10:56:26 WIB 2026
-base.0=D\:\\printer_bluetooth_server_app\\build\\app\\intermediates\\dex\\release\\minifyReleaseWithR8\\classes.dex
-renamed.0=classes.dex
-path.0=classes.dex

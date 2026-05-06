@@ -54,6 +54,9 @@ class LocalServer {
       // GET /test_page.html
       router.get('/test_page.html', _handleTestPage);
 
+      // GET /test (complete test suite info)
+      router.get('/test', _handleTestInfo);
+
       // POST /print-custom-receipt endpoint
       router.post('/print-custom-receipt', _handlePrintCustom);
 
@@ -354,9 +357,12 @@ class LocalServer {
           '/print-category',
           '/test_multi_printer.html',
           '/test_page.html',
+          '/test - Complete Test Suite (recommended)',
         ],
         'categories': categoryInfo,
         'category_count': categories.length,
+        'debug_mode': printerService.debugMode,
+        'tip': 'Visit /test for complete testing interface',
       }),
       headers: {'Content-Type': 'application/json'},
     );
@@ -376,6 +382,15 @@ class LocalServer {
     _log('Serving test_page.html');
     return Response.ok(
       _testPageHtml,
+      headers: {'Content-Type': 'text/html; charset=utf-8'},
+    );
+  }
+
+  /// Handle GET /test - Info about complete test suite
+  Response _handleTestInfo(Request request) {
+    _log('Test info requested');
+    return Response.ok(
+      _testCompleteInfoHtml,
       headers: {'Content-Type': 'text/html; charset=utf-8'},
     );
   }
@@ -654,6 +669,238 @@ class LocalServer {
       'Access-Control-Allow-Headers': 'Content-Type',
     };
   }
+
+  // HTML for test info page
+  static const String _testCompleteInfoHtml = '''
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OrbitPrint Test Suite</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            max-width: 700px;
+        }
+        h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .section {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+        .section h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+        .section p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+        .code {
+            background: #1f2937;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .button {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 10px 10px 10px 0;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
+        }
+        .alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            color: #92400e;
+        }
+        .steps {
+            counter-reset: step;
+            list-style: none;
+        }
+        .steps li {
+            counter-increment: step;
+            margin-bottom: 20px;
+            padding-left: 40px;
+            position: relative;
+        }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .feature {
+            display: flex;
+            align-items: start;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .feature-icon {
+            font-size: 1.5em;
+            min-width: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖨️ OrbitPrint</h1>
+        <p class="subtitle">Complete Test Suite</p>
+
+        <div class="alert">
+            <strong>⚠️ PENTING:</strong> Test page harus diakses dari device Android yang sama dengan OrbitPrint app!
+        </div>
+
+        <div class="section">
+            <h2>📥 Download Test Page</h2>
+            <p>File <strong>test_complete.html</strong> sudah tersedia di project folder.</p>
+            <p>Copy file ke Android device Anda dan buka dengan browser (Chrome/Firefox).</p>
+            <div class="code">📁 Location: printer-blueooth-termal-apps/test_complete.html</div>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Cara Menggunakan</h2>
+            <ol class="steps">
+                <li>
+                    <strong>Aktifkan Debug Mode</strong><br>
+                    Buka OrbitPrint → Settings → Toggle "Debug Mode" ON<br>
+                    <em>(Untuk testing tanpa printer fisik)</em>
+                </li>
+                <li>
+                    <strong>Assign Mock Printer</strong><br>
+                    Tab Printers → Scan Devices → Pilih "Mock Printer 1/2/3"
+                </li>
+                <li>
+                    <strong>Buka Test Page</strong><br>
+                    Buka file test_complete.html di browser Android<br>
+                    Atau gunakan test page simple di bawah
+                </li>
+                <li>
+                    <strong>Test Print!</strong><br>
+                    Isikan content → Pilih category → Klik Print<br>
+                    Check hasil di Dashboard → Debug Print Logs
+                </li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>✨ Fitur Test Suite</h2>
+            <div class="feature">
+                <div class="feature-icon">📝</div>
+                <div>
+                    <strong>Form Input Lengkap</strong><br>
+                    Test berbagai content dengan form yang mudah
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">👁️</div>
+                <div>
+                    <strong>Live Preview</strong><br>
+                    Preview struk sebelum print
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎨</div>
+                <div>
+                    <strong>Quick Fill Templates</strong><br>
+                    Sample data siap pakai (Receipt, Kitchen Order, dll)
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">📊</div>
+                <div>
+                    <strong>Statistics & History</strong><br>
+                    Track semua print request dan hasilnya
+                </div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔍</div>
+                <div>
+                    <strong>Server Status Monitor</strong><br>
+                    Real-time check server & printer categories
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🚀 Alternative: Simple Test</h2>
+            <p>Tidak mau ribet? Gunakan test page simple di bawah:</p>
+            <a href="/test_page.html" class="button">📄 Simple Test Page</a>
+            <a href="/test_multi_printer.html" class="button">🖨️ Multi-Printer Test</a>
+        </div>
+
+        <div class="section">
+            <h2>📡 API Test (cURL)</h2>
+            <p>Atau test langsung dengan cURL:</p>
+            <div class="code">curl -X POST http://127.0.0.1:18181/print-category \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "categoryId": "kasir",
+    "serverName": "Test",
+    "text": "Hello World!"
+  }'</div>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+            <a href="/" class="button">← Back to API Info</a>
+        </div>
+    </div>
+</body>
+</html>
+''';
 
   void dispose() {
     stop();

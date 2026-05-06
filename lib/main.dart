@@ -26,11 +26,11 @@ class OrbitPrintApp extends StatelessWidget {
           background: const Color(0xFF0F1419),
         ),
         scaffoldBackgroundColor: const Color(0xFF0F1419),
-        cardTheme: CardTheme(
-          color: const Color(0xFF1A1F2E),
+        cardTheme: const CardThemeData(
+          color: Color(0xFF1A1F2E),
           elevation: 4,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.all(Radius.circular(16)),
           ),
         ),
         appBarTheme: const AppBarTheme(
